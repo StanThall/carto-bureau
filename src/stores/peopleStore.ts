@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import { read, utils } from 'xlsx'
 import Papa from 'papaparse'
-import { db } from '@/db'
 import type { Person, WorkMode } from '@/types'
 
 type RawRow = Record<string, string>
@@ -49,7 +48,8 @@ export const usePeopleStore = defineStore('people', () => {
   const assignableWorkers = computed((): Person[] => people.value.filter((p: Person) => p.workMode !== 'remote'))
 
   async function loadPeople() {
-    people.value = await db.people.toArray()
+    const res = await fetch('/api/people')
+    people.value = await res.json() as Person[]
   }
 
   async function importFromFile(file: File): Promise<number> {
@@ -58,7 +58,11 @@ export const usePeopleStore = defineStore('people', () => {
       : await parseXLSX(file)
 
     const newPeople = rows.map(rowToPerson)
-    await db.people.bulkAdd(newPeople)
+    await fetch('/api/people/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPeople),
+    })
     people.value.push(...newPeople)
     return newPeople.length
   }
@@ -85,12 +89,12 @@ export const usePeopleStore = defineStore('people', () => {
   }
 
   async function deletePerson(personId: string) {
-    await db.people.delete(personId)
+    await fetch(`/api/people/${personId}`, { method: 'DELETE' })
     people.value = people.value.filter((p: Person) => p.id !== personId)
   }
 
   async function clearAll() {
-    await db.people.clear()
+    await fetch('/api/people', { method: 'DELETE' })
     people.value = []
   }
 
