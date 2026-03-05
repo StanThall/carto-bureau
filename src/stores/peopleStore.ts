@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { read, utils } from 'xlsx'
 import Papa from 'papaparse'
 import type { Person, WorkMode } from '@/types'
+import { usePlansStore } from './plansStore'
 
 type RawRow = Record<string, string>
 
@@ -52,19 +53,38 @@ export const usePeopleStore = defineStore('people', () => {
     people.value = await res.json() as Person[]
   }
 
-  async function importFromFile(file: File): Promise<number> {
+  async function importFromFile(file: File): Promise<{ added: number; deleted: number }> {
     const rows = file.name.toLowerCase().endsWith('.csv')
       ? await parseCSV(file)
       : await parseXLSX(file)
 
-    const newPeople = rows.map(rowToPerson)
-    await fetch('/api/people/bulk', {
-      method: 'POST',
+    const parsed = rows.map(rowToPerson)
+
+    const res = await fetch('/api/people', {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newPeople),
+      body: JSON.stringify(parsed),
     })
-    people.value.push(...newPeople)
-    return newPeople.length
+    const { added, deleted } = await res.json() as { added: number; deleted: string[] }
+
+    // Remove deleted people from local state
+    if (deleted.length > 0) {
+      const deletedSet = new Set(deleted)
+      people.value = people.value.filter(p => !deletedSet.has(p.id))
+      usePlansStore().freeSeatsByPersonIds(deleted)
+    }
+
+    // Add newly inserted people to local state (matched by name to avoid duplicates)
+    const norm = (s: string) => s.toLowerCase().trim()
+    const key = (fn: string, ln: string) => `${norm(fn)}|${norm(ln)}`
+    const existingKeys = new Set(people.value.map(p => key(p.firstName, p.lastName)))
+    for (const p of parsed) {
+      if (!existingKeys.has(key(p.firstName, p.lastName))) {
+        people.value.push(p)
+      }
+    }
+
+    return { added, deleted: deleted.length }
   }
 
   async function parseCSV(file: File): Promise<RawRow[]> {

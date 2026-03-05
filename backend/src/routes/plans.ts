@@ -120,24 +120,35 @@ router.put('/:planId/seats/move', async (req: Request, res: Response) => {
   }
 })
 
-// PUT /api/plans/:planId/seats/:seatId — assign or unassign a person
+// PUT /api/plans/:planId/seats/:seatId — assign/unassign person and/or update label
 router.put('/:planId/seats/:seatId', async (req: Request, res: Response) => {
-  const { personId } = req.body as { personId: string | null }
+  const body = req.body as { personId?: string | null; label?: string | null }
   const planId = req.params['planId']
   const seatId = req.params['seatId']
 
-  if (personId) {
-    // Unassign from any other seat on this plan first
-    await pool.query(
-      'UPDATE seats SET person_id = NULL WHERE plan_id = $1 AND person_id = $2',
-      [planId, personId],
-    )
+  if ('personId' in body) {
+    const personId = body.personId ?? null
+    if (personId) {
+      await pool.query(
+        'UPDATE seats SET person_id = NULL WHERE plan_id = $1 AND person_id = $2',
+        [planId, personId],
+      )
+    }
+    await pool.query('UPDATE seats SET person_id = $1 WHERE id = $2 AND plan_id = $3', [
+      personId,
+      seatId,
+      planId,
+    ])
   }
-  await pool.query('UPDATE seats SET person_id = $1 WHERE id = $2 AND plan_id = $3', [
-    personId ?? null,
-    seatId,
-    planId,
-  ])
+
+  if ('label' in body) {
+    await pool.query('UPDATE seats SET label = $1 WHERE id = $2 AND plan_id = $3', [
+      body.label ?? null,
+      seatId,
+      planId,
+    ])
+  }
+
   res.json({ ok: true })
 })
 

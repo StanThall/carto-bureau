@@ -9,6 +9,8 @@ import type { Person } from '@/types'
 
 defineProps<{ mode: string }>()
 
+declare const __APP_VERSION__: string
+
 const peopleStore = usePeopleStore()
 const plansStore = usePlansStore()
 const isDragOver = ref(false)
@@ -146,6 +148,7 @@ async function onDrop(e: DragEvent) {
     >
       <template v-if="isDragOver">Déposer ici pour désassigner</template>
       <template v-else>{{ peopleStore.people.length }} personnes · {{ assignedIds.size }} assignées</template>
+      <div class="mt-1 text-gray-300">v{{ __APP_VERSION__ }}</div>
     </div>
   </aside>
 </template>

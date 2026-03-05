@@ -16,8 +16,11 @@ async function handleFile(file: File) {
   loading.value = true
   message.value = null
   try {
-    const count = await peopleStore.importFromFile(file)
-    message.value = { text: `${count} personne(s) importée(s)`, type: 'success' }
+    const { added, deleted } = await peopleStore.importFromFile(file)
+    const parts = []
+    if (added > 0) parts.push(`${added} ajoutée(s)`)
+    if (deleted > 0) parts.push(`${deleted} supprimée(s)`)
+    message.value = { text: parts.length ? parts.join(', ') : 'Aucun changement', type: 'success' }
   } catch {
     message.value = { text: 'Erreur lors de l\'import', type: 'error' }
   } finally {
